@@ -1,0 +1,13 @@
+.env
+.env.*
+!.env.example
+__pycache__/
+*.pyc
+db.sqlite3
+parsed_data.json
+debug.log
+staticfiles/
+.venv/
+venv/
+.idea/
+.DS_Store
