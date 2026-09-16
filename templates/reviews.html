@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Отзывы - Подарки Telegram</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7f9f9;
+            margin: 0;
+            padding: 0;
+            color: #0f1419;
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 940px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        .main-title {
+            text-align: center;
+            font-size: 32px;
+            font-weight: 600;
+            color: #0f1419;
+            letter-spacing: 0px;
+            position: relative;
+            display: block;
+            width: max-content;
+        }
+
+        .main-title-wrapper {
+            position: relative;
+            display: block;
+            margin: 20px auto;
+            padding: 10px 20px;
+            background: rgba(0, 0, 0, 0);
+            border-radius: 8px;
+            text-align: center;
+            width: fit-content;
+        }
+
+        .main-title.sparkle {
+            background: linear-gradient(90deg, #0f1419 0%, #1da1f2 50%, #0f1419 100%);
+            background-size: 200% 100%;
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            animation: sparkle 4s infinite ease-in-out;
+        }
+
+        .modal-label {
+            display: block;
+            font-size: 14px;
+            font-weight: 400;
+            color: #0f1419;
+            margin-bottom: 8px;
+        }
+
+        .modal-input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #e1e8ed;
+            border-radius: 8px;
+            font-size: 14px;
+            margin-bottom: 20px;
+            box-sizing: border-box;
+            transition: border-color 0.2s ease-out;
+        }
+
+        .modal-input:focus {
+            border-color: #1da1f2;
+            outline: none;
+        }
+
+        .pay-button {
+            background: #1da1f2;
+            color: #fff;
+            padding: 10px 24px;
+            border: none;
+            border-radius: 24px;
+            font-size: 14px;
+            font-weight: 500;
+            margin-top: -10px;
+            margin-bottom: 30px;
+            cursor: pointer;
+            transition: background-color 0.2s ease-out, transform 0.2s ease-out;
+        }
+
+        .pay-button:hover {
+            background-color: #1991db;
+            transform: translateY(-1px);
+        }
+
+        .modal-note {
+            font-size: 11px;
+            color: #657786;
+            margin-top: 10px;
+            line-height: 1.4;
+        }
+
+        .telegram-quote {
+            margin: 0 0 30px 0;
+            padding: 10px 15px 10px 20px;
+            font-size: 16px;
+            font-weight: 400;
+            color: #0f1419;
+            background: #f0f2f5;
+            border-left: 3px solid #1da1f2;
+            border-radius: 4px;
+            line-height: 1.4;
+            text-align: left;
+            position: relative;
+        }
+
+        .quote-preview {
+            display: inline;
+        }
+
+        .review-date {
+            font-size: 12px;
+            color: #657786;
+            margin-top: 5px;
+        }
+
+        .loader {
+            text-align: center;
+            padding: 20px;
+            font-size: 14px;
+            color: #657786;
+            font-weight: 400;
+            opacity: 0.7;
+            transition: opacity 0.3s ease-out;
+        }
+
+        @keyframes sparkle {
+            0% { background-position: 0% 0%; }
+            50% { background-position: 200% 0%; }
+            100% { background-position: 0% 0%; }
+        }
+
+        @media only screen and (max-width: 428px) {
+            .main-title {
+                font-size: 28px;
+            }
+
+            .modal-label {
+                font-size: 12px;
+            }
+
+            .modal-input {
+                padding: 8px;
+                font-size: 12px;
+            }
+
+            .pay-button {
+                padding: 8px 20px;
+                font-size: 13px;
+            }
+
+            .modal-note {
+                font-size: 10px;
+            }
+
+            .telegram-quote {
+                font-size: 14px;
+                padding: 8px 10px 8px 15px;
+                margin: 0 0 20px 0;
+            }
+
+            .review-date {
+                font-size: 11px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="main-title-wrapper">
+            <h1 class="main-title sparkle">Отзывы</h1>
+            <div class="telegram-quote">
+                <span class="quote-preview">Ваши отзывы помогают нам становиться лучше 🎀</span>
+                <div class="review-date">{{ review.date }}</div>
+            </div>
+        </div>
+
+        <!-- Форма для добавления отзыва -->
+        <form method="POST" action="/reviews/" class="review-form">
+            {% csrf_token %}
+            <div class="modal-label" style="margin-top: -20px;">Ваш юзернейм</div>
+            <input type="text" name="username" class="modal-input" placeholder="@username" required>
+            <div class="modal-label">Оставьте свой отзыв</div>
+            <textarea name="review_text" class="modal-input" rows="4" placeholder="Ваш отзыв..." required></textarea>
+            <button type="submit" class="pay-button">Отправить</button>
+            {% if error_message %}
+                <div class="modal-note" style="color: #ff4444;">{{ error_message }}</div>
+            {% endif %}
+        </form>
+
+        <!-- Список отзывов -->
+        <div class="reviews-list">
+            {% if reviews %}
+                {% for review in reviews %}
+                    <div class="telegram-quote">
+                        <span class="quote-preview"><strong>{{ review.username }}</strong>: {{ review.text }}</span>
+                        <div class="review-date">{{ review.date }}</div>
+                    </div>
+                {% endfor %}
+            {% else %}
+                <div class="loader">Пока нет отзывов</div>
+            {% endif %}
+        </div>
+    </div>
+
+    <script>
+        window.Telegram.WebApp.ready();
+        window.Telegram.WebApp.expand();
+    </script>
+</body>
+</html>

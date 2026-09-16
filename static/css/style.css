@@ -1,0 +1,602 @@
+@font-face {
+    font-family: 'Milker';
+    src: url('/static/fonts/Milker.otf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+}
+
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: #f7f9f9;
+    margin: 0;
+    padding: 0;
+    color: #0f1419;
+    overflow-x: hidden;
+}
+
+.container {
+    max-width: 940px;
+    margin: 0 auto;
+    padding: 0 20px;
+}
+
+/* Существующий стиль заголовка */
+.main-title {
+    text-align: center;
+    font-size: 32px;
+    font-weight: 600;
+    color: #0f1419;
+    letter-spacing: 0px;
+    position: relative;
+    display: block;
+    width: max-content;
+}
+
+/* Обертка для заголовка с фоном */
+.main-title-wrapper {
+    position: relative;
+    display: block; /* Меняем с inline-block на block */
+    margin: 20px auto; /* Центрируем по горизонтали */
+    padding: 10px 20px;
+    background: rgba(0, 0, 0, 0);
+    border-radius: 8px;
+    text-align: center; /* Центрируем текст внутри */
+    width: fit-content; /* Подстраиваем ширину под содержимое */
+}
+
+.main-title.sparkle {
+    background: linear-gradient(90deg, #0f1419 0%, #1da1f2 50%, #0f1419 100%);
+    background-size: 200% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: sparkle 4s infinite ease-in-out;
+}
+
+.section-title {
+    font-size: 18px;
+    font-weight: 500;
+    color: #657786;
+    margin-bottom: 10px;
+    letter-spacing: -0.2px;
+}
+
+.collections {
+    margin-bottom: 40px;
+    opacity: 0;
+    animation: fadeIn 0.5s ease-out forwards;
+}
+
+.collections.fixed {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: #f7f9f9;
+    padding: 10px 0;
+    margin-bottom: 20px;
+}
+
+.collection-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 16px;
+    transition: all 0.3s ease-out;
+}
+
+.collection-list.horizontal {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    gap: 12px;
+    padding-bottom: 10px;
+    scrollbar-width: thin;
+    scrollbar-color: #1da1f2 #e1e8ed;
+}
+
+.collection-list.horizontal::-webkit-scrollbar {
+    height: 6px;
+}
+
+.collection-list.horizontal::-webkit-scrollbar-thumb {
+    background: #1da1f2;
+    border-radius: 3px;
+}
+
+.collection-list.horizontal::-webkit-scrollbar-track {
+    background: #e1e8ed;
+}
+
+.collection-item {
+    display: flex;
+    align-items: center;
+    background: #fff;
+    padding: 14px 18px;
+    border-radius: 14px;
+    text-decoration: none;
+    color: #0f1419;
+    border: 1px solid #e1e8ed;
+    transition: transform 0.2s ease-out, box-shadow 0.2s ease-out, background-color 0.2s ease-out;
+    opacity: 0;
+    animation: slideUp 0.3s ease-out forwards;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+    flex: 0 0 auto;
+}
+
+.collection-item:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 14px rgba(0, 0, 0, 0.06);
+    background-color: #f5f8fa;
+}
+
+.collection-item.selected {
+    background-color: #e8f4fd;
+    border-color: #1da1f2;
+    box-shadow: 0 4px 12px rgba(29, 161, 242, 0.2);
+}
+
+.collection-item img {
+    width: 48px;
+    height: 48px;
+    border-radius: 8px;
+    margin-right: 14px;
+    object-fit: cover;
+}
+
+.collection-item span {
+    font-size: 15px;
+    font-weight: 500;
+    color: #0f1419;
+}
+
+.nfts {
+    margin-bottom: 40px;
+    opacity: 0;
+    animation: fadeIn 0.5s ease-out forwards;
+}
+
+.nft-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 20px;
+}
+
+/* Существующие стили для .nft-item */
+.nft-item {
+    background: #fff;
+    padding: 16px;
+    border-radius: 12px;
+    border: 1px solid #e1e8ed;
+    text-align: center;
+    transition: transform 0.2s ease-out, box-shadow 0.2s ease-out;
+    opacity: 0;
+    animation: slideUp 0.3s ease-out forwards;
+    cursor: pointer;
+}
+
+/* Общий стиль для неактивных/проданных карточек */
+.nft-item.inactive,
+.nft-item.sold {
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
+.nft-item.inactive .buy-button,
+.nft-item.sold .buy-button {
+    display: none; /* Скрываем кнопку покупки */
+}
+
+/* Стиль для "Недоступно" */
+.nft-item.inactive {
+    background: #f0f0f0; /* Серый фон */
+}
+
+.nft-item.inactive .over-limit {
+    display: block;
+    font-size: 12px;
+    color: #999;
+    margin-top: 8px;
+}
+
+/* Стиль для "Продано" */
+.nft-item.sold {
+    background: #ffe6e6; /* Светло-красный фон */
+}
+
+.nft-item.sold::after {
+    content: "Продано";
+    display: block;
+    font-size: 12px;
+    color: #ff4444; /* Красный текст */
+    margin-top: 8px;
+}
+
+/* Скрываем лишние элементы */
+.nft-item.sold .nft-price::after {
+    content: ""; /* Убираем "(Продано)" из цены */
+}
+
+/* Остальные стили для .nft-item остаются без изменений */
+.nft-item:hover:not(.inactive):not(.sold) {
+    transform: translateY(-4px);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.06);
+}
+
+.nft-item img {
+    width: 100%;
+    height: 160px;
+    object-fit: cover;
+    border-radius: 8px;
+    margin-bottom: 12px;
+}
+
+.nft-info {
+    margin-bottom: 12px;
+}
+
+.nft-name {
+    display: block;
+    font-size: 14px;
+    font-weight: 500;
+    color: #0f1419;
+}
+
+.nft-price {
+    display: block;
+    font-size: 12px;
+    color: #657786;
+    font-weight: 400;
+}
+
+.buy-button {
+    background: #1da1f2;
+    color: #fff;
+    padding: 8px 16px;
+    border: none;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.2s ease-out;
+}
+
+.buy-button:hover {
+    background-color: #1991db;
+}
+
+.over-limit {
+    display: none;
+}
+
+/* Добавим цену к коллекциям */
+.collection-item .price {
+    font-size: 12px;
+    color: #657786;
+    margin-left: 8px;
+}
+
+/* Эффект блеска для модального окна */
+.modal-image-container {
+    position: relative;
+    overflow: hidden;
+    border-radius: 10px;
+}
+
+
+
+/* ... (остальной код остается без изменений) ... */
+
+/* Остальные существующие стили остаются без изменений */
+
+.nft-item img {
+    width: 100%;
+    height: 160px; /* Было 160px, делаем квадрат */
+    object-fit: cover;
+    border-radius: 8px;
+    margin-bottom: 12px;
+}
+
+.nft-info {
+    margin-bottom: 12px;
+}
+
+.nft-name {
+    display: block;
+    font-size: 14px;
+    font-weight: 500;
+    color: #0f1419;
+}
+
+.nft-price {
+    display: block;
+    font-size: 12px;
+    color: #657786;
+    font-weight: 400;
+}
+
+.buy-button {
+    background: #1da1f2;
+    color: #fff;
+    padding: 8px 16px;
+    border: none;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.2s ease-out;
+}
+
+.buy-button:hover {
+    background-color: #1991db;
+}
+
+.over-limit {
+    display: none;
+}
+
+.loader {
+    text-align: center;
+    padding: 20px;
+    font-size: 14px;
+    color: #657786;
+    font-weight: 400;
+    opacity: 0.7;
+    transition: opacity 0.3s ease-out;
+}
+
+.modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.4);
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    opacity: 0;
+    transition: opacity 0.2s ease-out;
+}
+
+.modal.open {
+    opacity: 1;
+}
+
+.modal-content {
+    background: #fff;
+    padding: 24px;
+    border-radius: 16px;
+    width: 90%;
+    max-width: 360px; /* Уменьшаем для десктопа */
+    text-align: center;
+    transform: scale(0.9);
+    transition: transform 0.2s ease-out;
+}
+
+.modal.open .modal-content {
+    transform: scale(1);
+}
+
+.close-modal {
+    position: absolute;
+    top: 12px;
+    right: 16px;
+    font-size: 24px;
+    color: #657786;
+    cursor: pointer;
+    transition: color 0.2s ease-out;
+}
+
+.close-modal:hover {
+    color: #0f1419;
+}
+
+.modal-image {
+    width: 100%;
+    max-height: 320px;
+    object-fit: cover;
+    border-radius: 10px;
+    margin-bottom: 16px;
+}
+
+.modal-title {
+    font-size: 16px;
+    font-weight: 500;
+    color: #0f1419;
+    margin-bottom: 8px;
+}
+
+.modal-price {
+    font-size: 14px;
+    color: #657786;
+    margin-bottom: 20px;
+}
+
+.modal-label {
+    display: block;
+    font-size: 14px;
+    font-weight: 400;
+    color: #0f1419;
+    margin-bottom: 8px;
+}
+
+.modal-input {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #e1e8ed;
+    border-radius: 8px;
+    font-size: 14px;
+    margin-bottom: 20px;
+    box-sizing: border-box;
+    transition: border-color 0.2s ease-out;
+}
+
+.modal-input:focus {
+    border-color: #1da1f2;
+    outline: none;
+}
+
+.pay-button {
+    background: #1da1f2;
+    color: #fff;
+    padding: 10px 24px;
+    border: none;
+    border-radius: 24px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.2s ease-out, transform 0.2s ease-out;
+}
+
+.pay-button:hover {
+    background-color: #1991db;
+    transform: translateY(-1px);
+}
+
+.modal-note {
+    font-size: 11px;
+    color: #657786;
+    margin-top: 10px;
+    line-height: 1.4;
+}
+
+.modal-note a {
+    color: #1da1f2;
+    text-decoration: none;
+}
+
+.modal-note a:hover {
+    text-decoration: underline;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes slideUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes sparkle {
+    0% { background-position: 0% 0%; }
+    50% { background-position: 200% 0%; }
+    100% { background-position: 0% 0%; }
+}
+
+@media only screen and (max-width: 428px) {
+    .nft-list {
+        grid-template-columns: repeat(2, 1fr); /* Два столбца */
+        gap: 10px;
+    }
+
+    .nft-item {
+        padding: 12px;
+    }
+
+    .nft-item img {
+        height: 120px;
+    }
+
+    .nft-name {
+        font-size: 13px;
+    }
+
+    .nft-price {
+        font-size: 11px;
+    }
+
+    .buy-button {
+        padding: 6px 12px;
+        font-size: 12px;
+    }
+}
+
+@media only screen and (max-width: 428px) {
+    .modal-content {
+        max-width: 300px; /* Уменьшаем максимальную ширину */
+        padding: 16px; /* Уменьшаем внутренние отступы */
+    }
+
+    .modal-image {
+        max-height: 300px; /* Уменьшаем высоту изображения */
+    }
+
+    .modal-title {
+        font-size: 14px; /* Уменьшаем заголовок */
+    }
+
+    .modal-price {
+        font-size: 12px; /* Уменьшаем цену */
+        margin-bottom: 15px;
+    }
+
+    .modal-label {
+        font-size: 12px; /* Уменьшаем метку */
+    }
+
+    .modal-input {
+        padding: 8px; /* Уменьшаем поле ввода */
+        font-size: 12px;
+    }
+
+    .pay-button {
+        padding: 8px 20px; /* Уменьшаем кнопку */
+        font-size: 13px;
+    }
+
+    .modal-note {
+        font-size: 10px; /* Уменьшаем примечание */
+    }
+}
+
+.telegram-quote {
+    margin: 0 0 30px 0; /* Убираем верхний отступ, оставляем нижний */
+    padding: 10px 15px 10px 20px;
+    font-size: 16px;
+    font-weight: 400;
+    color: #0f1419;
+    background: #f0f2f5;
+    border-left: 3px solid #1da1f2;
+    border-radius: 4px;
+    line-height: 1.4;
+    text-align: left;
+    position: relative;
+}
+
+.quote-preview {
+    display: inline;
+}
+
+.quote-full {
+    display: none; /* Скрыт по умолчанию */
+}
+
+.quote-toggle {
+    background: none;
+    border: none;
+    color: #1da1f2;
+    font-size: 12px;
+    padding: 0;
+    margin-left: 10px;
+    cursor: pointer;
+    text-decoration: underline;
+}
+
+.quote-toggle:hover {
+    color: #1991db;
+}
+
+@media (max-width: 428px) {
+    .telegram-quote {
+        font-size: 14px;
+        padding: 8px 10px 8px 15px;
+        margin: 0 0 20px 0;
+    }
+
+    .quote-toggle {
+        font-size: 11px;
+    }
+}

@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    {% load static %}
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="description" content="TGIFT - галерея уникальных NFT-подарков для Telegram">
+    <meta name="keywords" content="Telegram Gifts, NFT подарки, уникальные подарки Telegram, купить NFT Telegram, цифровые подарки, Telegram NFT магазин, подарки для Telegram, TGIFT, NFT коллекции, виртуальные подарки, Telegram звёзды, купить звёзды Telegram, оригинальные подарки онлайн, Телеграм подарки, NFT Телеграм, уникальные подарки Телеграм, купить подарки в Телеграме, цифровые подарки Телеграм, звёзды Телеграм, ТГ подарки, ТГ NFT, купить NFT ТГ, TG Gifts, TG NFT, подарки TG, купить звёзды TG, NFT, подарки, звёзды, Telegram, Телеграм, ТГ, TG, виртуальные NFT, онлайн подарки, уникальные NFT, коллекции Telegram">    <meta name="author" content="TGIFT Team">
+    <meta name="robots" content="index, follow">    
+    <title>Подарки Telegram</title>
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js"></script>
+</head>
+<body>
+    <div class="header">
+        <div class="logo-container">
+            <a href="/" class="logo-link">
+                <img src="https://tgift.ru/static/img/logo.png" alt="Logo" class="header-logo">
+                <h1 class="main-title sparkle" style="display: inline-block; margin: 0;">Telegram Gifts</h1>
+            </a>
+        </div>
+        <div data-nosnippet>
+            <a href="https://t.me/tgift_shop">Платежи временно отключены. Мы уже работаем над решением проблемы! О включении сообщим (нажать)</a>
+        </div>
+    </div>
+    
+    <div class="container">
+        <div class="collections" id="collections-section">
+            <div class="collection-list" id="collection-list">
+                <div class="loader">Загрузка коллекций...</div>
+            </div>
+        </div>
+        <div class="nfts" id="nfts-section" style="display: none;">
+            <div class="nft-list" id="nft-list"></div>
+            <button id="load-more" style="display: none; margin: 20px auto; padding: 10px 20px; background: transparent; color: #1da1f2; border: 1px solid #1da1f2; border-radius: 20px; cursor: pointer;">Загрузить еще</button>
+        </div>
+    </div>
+
+    <div class="modal" id="gift-modal"></div>
+
+    <script>
+        window.Telegram.WebApp.ready();
+        window.Telegram.WebApp.expand();
+
+        const collectionsSection = document.getElementById('collections-section');
+        const collectionList = document.getElementById('collection-list');
+        const nftsSection = document.getElementById('nfts-section');
+        const nftList = document.getElementById('nft-list');
+        const loadMoreButton = document.getElementById('load-more');
+        const modal = document.getElementById('gift-modal');
+        const csrfToken = "{{ csrf_token }}";
+        const maxGiftPrice = {{ max_gift_price }};
+
+        let currentCollectionId = null;
+        const nftCache = {};
+        let isLoading = false;
+        const itemsPerPage = 20;
+        let currentPage = 0;
+        let allNfts = [];
+
+        // Загрузка коллекций
+        async function loadCollections() {
+            const response = await fetch('/api/collections/');
+            const data = await response.json();
+            collectionList.innerHTML = '';
+
+            data.collections.forEach((collection, index) => {
+                const item = createCollectionItem(collection, index);
+                collectionList.appendChild(item);
+            });
+        }
+
+        function createCollectionItem(collection, index) {
+            const item = document.createElement('a');
+            item.href = '#';
+            item.className = `collection-item ${collection.id === 'buy-stars' ? 'buy-stars' : ''} ${collection.labels.length > 0 ? 'labeled' : ''}`;
+            item.dataset.collectionId = collection.id;
+            item.style.animationDelay = `${index * 0.05}s`;
+            const label = collection.labels[0] || '';
+            const labelHtml = label ? `
+                <span class="badge ${label}">${label === 'hit' ? 'Хит' : label === 'for_her' ? 'Для неё' : label === 'for_him' ? 'Для него' : label === 'spring' ? 'Весна' : label === 'best_deal' ? 'Выгодно' : ''}</span>
+            ` : '';
+            item.innerHTML = `
+                <div class="image-wrapper">
+                    <img src="${collection.image}" alt="${collection.name}">
+                    ${labelHtml}
+                </div>
+                <span>${collection.name}</span>
+                <span class="price">${collection.min_price}</span>
+            `;
+
+            item.addEventListener('click', (e) => {
+                e.preventDefault();
+                if (isLoading) return;
+                currentCollectionId = collection.id;
+                if (collection.id === 'buy-stars') {
+                    openStarsModal();
+                } else {
+                    loadNfts(collection.id);
+                    document.querySelectorAll('.collection-item').forEach(el => el.classList.remove('selected'));
+                    item.classList.add('selected');
+                    collectionList.classList.add('horizontal');
+                    collectionsSection.classList.add('fixed');
+                    history.pushState(null, '', `?collection_id=${collection.id}`);
+                }
+            });
+
+            return item;
+        }
+
+        // Загрузка NFT
+        async function loadNfts(collectionId) {
+            if (isLoading) return;
+            isLoading = true;
+            nftsSection.style.display = 'block';
+            nftList.innerHTML = '<div class="loader">Загрузка подарков...</div>';
+            loadMoreButton.style.display = 'none';
+
+            try {
+                if (nftCache[collectionId]) {
+                    allNfts = nftCache[collectionId];
+                    currentPage = 0;
+                    nftList.innerHTML = '';
+                    displayNfts(allNfts.slice(0, itemsPerPage));
+                    setupLoadMore(allNfts);
+                } else {
+                    const response = await fetch(`/api/nfts/${collectionId}/`);
+                    const data = await response.json();
+                    if (data.nfts && data.nfts.length > 0) {
+                        nftCache[collectionId] = data.nfts;
+                        allNfts = data.nfts;
+                        currentPage = 0;
+                        nftList.innerHTML = '';
+                        displayNfts(allNfts.slice(0, itemsPerPage));
+                        setupLoadMore(allNfts);
+                    } else {
+                        nftList.innerHTML = '<p>Подарки не найдены</p>';
+                    }
+                }
+            } catch (e) {
+                console.error(`Ошибка загрузки подарков для ${collectionId}: ${e}`);
+                nftList.innerHTML = '<p>Ошибка загрузки</p>';
+            } finally {
+                isLoading = false;
+            }
+        }
+
+        function displayNfts(nfts) {
+            if (currentCollectionId && nftCache[currentCollectionId].includes(nfts[0])) {
+                nfts.forEach((nft) => {
+                    const priceFloat = parseFloat(nft.price.replace(' ₽', '').replace(',', ''));
+                    const isOverLimit = priceFloat > maxGiftPrice;
+                    const isSold = nft.sold;
+
+                    const item = document.createElement('div');
+                    item.className = `nft-item ${isOverLimit ? 'inactive' : ''} ${isSold ? 'sold' : ''}`;
+                    item.dataset.name = nft.name;
+                    item.innerHTML = `
+                        <img src="${nft.image}" alt="${nft.name}">
+                        <div class="nft-info">
+                            <span class="nft-name">${nft.name}</span>
+                            <span class="nft-price">${nft.price}</span>
+                        </div>
+                        ${!isOverLimit && !isSold ? '<button class="buy-button">Подарить сейчас</button>' : ''}
+                        ${isOverLimit ? '<span class="over-limit">Недоступно</span>' : ''}
+                    `;
+                    if (!isOverLimit && !isSold) {
+                        item.addEventListener('click', () => openModal(nft));
+                        item.querySelector('.buy-button').addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            openModal(nft);
+                        });
+                    }
+                    nftList.appendChild(item);
+                });
+            }
+        }
+
+        function setupLoadMore(nfts) {
+            if (nfts.length > (currentPage + 1) * itemsPerPage) {
+                loadMoreButton.style.display = 'block';
+                loadMoreButton.onclick = () => {
+                    currentPage++;
+                    const nextNfts = nfts.slice(currentPage * itemsPerPage, (currentPage + 1) * itemsPerPage);
+                    displayNfts(nextNfts);
+                    if (nfts.length <= (currentPage + 1) * itemsPerPage) {
+                        loadMoreButton.style.display = 'none';
+                    }
+                };
+            } else {
+                loadMoreButton.style.display = 'none';
+            }
+        }
+
+        function updateNftStatus(giftName, action, newPrice) {
+            const nftItem = nftList.querySelector(`.nft-item[data-name="${giftName}"]`);
+            if (!nftItem) return;
+
+            if (action === 'remove') {
+                nftItem.remove();
+                if (!nftList.children.length) {
+                    nftList.innerHTML = '<p>Подарки не найдены</p>';
+                }
+            } else if (action === 'sold') {
+                nftItem.classList.add('sold');
+                const buyButton = nftItem.querySelector('.buy-button');
+                if (buyButton) buyButton.remove();
+            } else if (action === 'price_changed' && newPrice) {
+                nftItem.querySelector('.nft-price').textContent = newPrice;
+            }
+        }
+
+        // Общая функция для создания кнопки закрытия
+        function createCloseButton() {
+            const closeButton = document.createElement('span');
+            closeButton.className = 'close-modal';
+            closeButton.id = 'close-modal';
+            closeButton.innerHTML = '×';
+            closeButton.addEventListener('click', closeModal);
+            return closeButton;
+        }
+
+        // Закрытие модального окна
+        function closeModal() {
+            const modal = document.getElementById('gift-modal');
+            modal.classList.remove('open');
+            setTimeout(() => modal.style.display = 'none', 200);
+        }
+
+        // Открытие модального окна для NFT
+        function openModal(nft) {
+            const telegramUsername = window.Telegram.WebApp.initDataUnsafe?.user?.username || '';
+            const modal = document.getElementById('gift-modal');
+            
+            modal.innerHTML = `
+                <div class="modal-content">
+                    <div class="modal-image-container">
+                        <div id="modal-animation" style="width: 100%; height: 100%;"></div>
+                    </div>
+                    <h3 id="modal-name" class="modal-title">${nft.name}</h3>
+                    <p id="modal-price" class="modal-price">${nft.price}</p>
+                    <label for="username" class="modal-label">Кому подарить:</label>
+                    <input type="text" id="username" class="modal-input" placeholder="@receiver">
+                    <div id="buyer-username-section" style="display: none;">
+                        <label for="buyer_username" class="modal-label">Ваш юзернейм:</label>
+                        <input type="text" id="buyer_username" class="modal-input" value="${telegramUsername}" placeholder="@buyer">
+                    </div>
+                    <button class="pay-button" id="pay-button">Подарить сейчас</button>
+                    <p class="modal-note">
+                        Отправка подарка занимает от 15 минут до часа. В редких случаях — до суток.<br>
+                        <a href="https://t.me/gifts_support" target="_blank">Поддержка</a> | 
+                        <a href="/reviews/" target="_blank">Отзывы</a> | 
+                        <a href="/details/" target="_blank">Публичная оферта</a>
+                    </p>
+                </div>
+            `;
+            modal.querySelector('.modal-content').prepend(createCloseButton());
+            modal.style.display = 'flex';
+            setTimeout(() => modal.classList.add('open'), 10);
+
+            loadAnimation(nft);
+            setupModalInputs(modal, nft);
+        }
+
+        // Загрузка анимации
+        function loadAnimation(nft) {
+            const [namePart, numberPart] = nft.name.split('#');
+            const giftNameFormatted = namePart.toLowerCase().replace(/\s+/g, '') + (numberPart ? `-${numberPart.trim()}` : '');
+            const animationUrl = `https://nft.fragment.com/gift/${giftNameFormatted}.lottie.json`;
+
+            try {
+                lottie.loadAnimation({
+                    container: document.getElementById('modal-animation'),
+                    renderer: 'svg',
+                    loop: true,
+                    autoplay: true,
+                    path: animationUrl
+                });
+            } catch (e) {
+                console.error(`Ошибка загрузки анимации для ${nft.name}: ${e}`);
+                document.getElementById('modal-animation').innerHTML = `<img src="${nft.image}" alt="${nft.name}" class="modal-image">`;
+            }
+        }
+
+        // Настройка инпутов и кнопки оплаты
+        function setupModalInputs(modal, nft) {
+            const payButton = modal.querySelector('#pay-button');
+            const usernameInput = modal.querySelector('#username');
+            const buyerUsernameInput = modal.querySelector('#buyer_username');
+            const buyerUsernameSection = modal.querySelector('#buyer-username-section');
+
+            usernameInput.addEventListener('input', () => {
+                buyerUsernameSection.style.display = usernameInput.value.trim().length > 0 ? 'block' : 'none';
+            });
+
+            payButton.onclick = async () => {
+                const username = usernameInput.value.trim();
+                const buyerUsername = buyerUsernameInput.value.trim();
+                if (!username || !buyerUsername) {
+                    alert('Введите оба юзернейма: получателя и покупателя');
+                    return;
+                }
+
+                payButton.disabled = true;
+                payButton.textContent = 'Создаём платёж...';
+                await processPayment(nft, username, buyerUsername, payButton);
+            };
+        }
+
+        // Обработка платежа
+        async function processPayment(nft, username, buyerUsername, payButton) {
+            const response = await fetch('/api/create-payment/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-CSRFToken': csrfToken
+                },
+                body: new URLSearchParams({
+                    'username': username,
+                    'buyer_username': buyerUsername,
+                    'price': nft.price,
+                    'gift_name': nft.name,
+                    'collection_id': currentCollectionId
+                })
+            });
+
+            const data = await response.json();
+            if (data.confirmation_url) {
+                payButton.textContent = 'Переходим к оплате...';
+                setTimeout(() => window.location.href = data.confirmation_url, 1000);
+            } else {
+                handlePaymentError(data, nft, payButton);
+            }
+        }
+
+        // Обработка ошибок платежа
+        function handlePaymentError(data, nft, payButton) {
+            alert(data.error || 'Неизвестная ошибка');
+            payButton.disabled = false;
+            payButton.textContent = 'Подарить сейчас';
+            if (data.action === 'remove') {
+                updateNftStatus(nft.name, 'remove');
+            } else if (data.action === 'sold') {
+                updateNftStatus(nft.name, 'sold');
+            } else if (data.action === 'price_changed' && data.new_price) {
+                updateNftStatus(nft.name, 'price_changed', data.new_price);
+                nft.price = data.new_price;
+            }
+        }
+
+        // Открытие модального окна для покупки звезд
+        function openStarsModal() {
+            const telegramUsername = window.Telegram.WebApp.initDataUnsafe?.user?.username || '';
+            const modal = document.getElementById('gift-modal');
+
+            modal.innerHTML = `
+                <div class="modal-content">
+                    <div class="" style="height: 60px; margin: 15px 0;">
+                        <img src="data:image/svg+xml,%3Csvg%20height%3D%2216%22%20viewBox%3D%220%200%2020%2020%22%20width%3D%2216%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20xmlns%3Axlink%3D%22http%3A%2F%2Fwww.w3.org%2F1999%2Fxlink%22%3E%3Cdefs%3E%3Cpath%20id%3D%22a%22%20d%3D%22m6.02%204.99%202.21-4.42c.25-.51.86-.72%201.37-.46.2.1.36.27.46.47l2.08%204.26c.17.34.50.58.88.63l4.36.52c.59.08%201.02.62.95%201.22-.03.24-.14.47-.32.65l-3.45%203.42c-.14.13-.20.33-.18.53l.57%204.61c.09.66-.38%201.27-1.03%201.35-.25.03-.50-.02-.72-.14l-3.64-2c-.26-.14-.58-.15-.85-.01l-3.77%201.95c-.53.27-1.18.06-1.45-.48-.11-.20-.14-.43-.11-.65l.30-2.12c.15-1.04.79-1.93%201.71-2.41l4.19-2.15c.11-.06.15-.20.1-.31-.05-.09-.14-.14-.24-.12l-5.12.74c-.78.11-1.58-.11-2.19-.62l-1.71-1.4c-.49-.4-.56-1.12-.17-1.62.19-.22.45-.37.74-.41l4.38-.57c.28-.03.52-.21.65-.46z%22%2F%3E%3ClinearGradient%20id%3D%22b%22%20x1%3D%2225%25%22%20x2%3D%2274.92%25%22%20y1%3D%22.825%25%22%20y2%3D%22107.86%25%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23ffd951%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23ffb222%22%2F%3E%3C%2FlinearGradient%3E%3ClinearGradient%20id%3D%22c%22%20x1%3D%2250%25%22%20x2%3D%2250%25%22%20y1%3D%220%25%22%20y2%3D%2299.8%25%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23e58f0d%22%2F%3E%3Cstop%20offset%3D%22.9996%22%20stop-color%3D%22%23eb7915%22%2F%3E%3C%2FlinearGradient%3E%3Cfilter%20id%3D%22d%22%20height%3D%22110.6%25%22%20width%3D%22110.3%25%22%20x%3D%22-5.2%25%22%20y%3D%22-5.3%25%22%3E%3CfeOffset%20dx%3D%221%22%20dy%3D%221%22%20in%3D%22SourceAlpha%22%20result%3D%22shadowOffsetInner1%22%2F%3E%3CfeComposite%20in%3D%22shadowOffsetInner1%22%20in2%3D%22SourceAlpha%22%20k2%3D%22-1%22%20k3%3D%221%22%20operator%3D%22arithmetic%22%20result%3D%22shadowInnerInner1%22%2F%3E%3CfeColorMatrix%20in%3D%22shadowInnerInner1%22%20type%3D%22matrix%22%20values%3D%220%200%200%200%201%200%200%200%200%201%200%200%200%200%201%200%200%200%200.657%200%22%2F%3E%3C%2Ffilter%3E%3C%2Fdefs%3E%3Cg%20fill%3D%22none%22%20fill-rule%3D%22evenodd%22%20transform%3D%22translate%281.389%201.389%29%22%3E%3Cuse%20fill%3D%22url%28%23b%29%22%20fill-rule%3D%22evenodd%22%20xlink%3Ahref%3D%22%23a%22%2F%3E%3Cuse%20fill%3D%22%23000%22%20filter%3D%22url%28%23d%29%22%20xlink%3Ahref%3D%22%23a%22%2F%3E%3Cuse%20stroke%3D%22url%28%23c%29%22%20stroke-width%3D%22.89%22%20xlink%3Ahref%3D%22%23a%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E" alt="Купить звёзды" class="modal-image" style="width: 55px; height: 55px;">
+                    </div>
+                    <h3 class="modal-title">Купить звёзды</h3>
+                    <label for="stars-count" class="modal-label">Количество звёзд (50-2000):</label>
+                    <input type="text" id="stars-count" class="modal-input" value="50" placeholder="Введите количество">
+                    <p id="stars-price" class="modal-price" style="margin-top: -13px;">79.50 ₽</p>
+                    <label for="username" class="modal-label">Кому отправить:</label>
+                    <input type="text" id="username" class="modal-input" placeholder="@receiver">
+                    <button class="pay-button" id="pay-button">Купить звёзды</button>
+                    <p class="modal-note">
+                        Отправка звёзд занимает от 2 до 15 минут. В редких случаях — до суток.<br>
+                        <a href="https://t.me/gifts_support" target="_blank">Поддержка</a> | 
+                        <a href="/reviews/" target="_blank">Отзывы</a> | 
+                        <a href="/details/" target="_blank">Публичная оферта</a>
+                    </p>
+                </div>
+            `;
+            modal.querySelector('.modal-content').prepend(createCloseButton());
+            modal.style.display = 'flex';
+            setTimeout(() => modal.classList.add('open'), 10);
+
+            setupStarsModalInputs(modal, telegramUsername);
+        }
+
+        // Настройка инпутов для покупки звезд
+        function setupStarsModalInputs(modal, telegramUsername) {
+            const payButton = modal.querySelector('#pay-button');
+            const starsCountInput = modal.querySelector('#stars-count');
+            const starsPrice = modal.querySelector('#stars-price');
+            const usernameInput = modal.querySelector('#username');
+
+            function updatePrice() {
+                const count = parseInt(starsCountInput.value) || 0;
+                const price = count * 1.59;
+                starsPrice.textContent = `${price.toFixed(2)} ₽`;
+            }
+
+            starsCountInput.addEventListener('input', updatePrice);
+            updatePrice();
+
+            payButton.onclick = async () => {
+                const username = usernameInput.value.trim();
+                const starsCount = parseInt(starsCountInput.value) || 0;
+                const price = (starsCount * 1.59).toFixed(2);
+
+                if (!username || starsCount <= 0) {
+                    alert(starsCount <= 0 ? 'Введите корректное количество звёзд' : 'Введите юзернейм получателя');
+                    return;
+                }
+
+                payButton.disabled = true;
+                payButton.textContent = 'Создаём платёж...';
+                await processStarsPayment(username, telegramUsername, starsCount, price, payButton);
+            };
+        }
+
+        // Обработка платежа для звезд
+        async function processStarsPayment(username, telegramUsername, starsCount, price, payButton) {
+            const response = await fetch('/api/create-payment/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-CSRFToken': csrfToken
+                },
+                body: new URLSearchParams({
+                    'username': username,
+                    'buyer_username': telegramUsername || 'anonymous',
+                    'price': `${price} ₽`,
+                    'collection_id': 'buy-stars',
+                    'stars_count': starsCount
+                })
+            });
+
+            const data = await response.json();
+            if (data.confirmation_url) {
+                payButton.textContent = 'Переходим к оплате...';
+                setTimeout(() => window.location.href = data.confirmation_url, 1000);
+            } else {
+                alert(data.error || 'Ошибка создания платежа');
+                payButton.disabled = false;
+                payButton.textContent = 'Купить звёзды';
+            }
+        }
+
+        // Инициализация
+        window.addEventListener('load', async () => {
+            await loadCollections();
+        });
+
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                closeModal();
+            }
+        });
+
+        // Обработка выпадающего меню
+        const dropdown = document.querySelector('.dropdown');
+        const dropButton = document.querySelector('.drop-button');
+        const dropdownContent = document.getElementById('dropdown-content');
+
+        let touchStartX = 0;
+        let touchEndX = 0;
+
+        dropButton.addEventListener('click', (e) => {
+            e.preventDefault();
+            dropdown.classList.toggle('open');
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!dropdown.contains(e.target)) {
+                dropdown.classList.remove('open');
+            }
+        });
+
+        dropdownContent.addEventListener('touchstart', (e) => {
+            touchStartX = e.changedTouches[0].screenX;
+        });
+
+        dropdownContent.addEventListener('touchend', (e) => {
+            touchEndX = e.changedTouches[0].screenX;
+            if (Math.abs(touchStartX - touchEndX) > 50) {
+                dropdown.classList.remove('open');
+            }
+        });
+
+        dropdownContent.addEventListener('touchmove', (e) => {
+            e.stopPropagation();
+        });
+    </script>
+    <style>
+        .header {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: #fff;
+            padding: 10px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            z-index: 1000;
+            border-bottom: 1px solid #eee;
+        }
+
+        .logo-container {
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+        }
+
+        .logo-link {
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+        }
+
+        .header-logo {
+            width: 50px;
+            height: 50px;
+            vertical-align: middle;
+        }
+
+        .main-title {
+            margin-left: 10px;
+            font-family: 'Inter', sans-serif;
+            font-size: 25px;
+            font-weight: 600;
+            color: #333;
+            position: relative;
+        }
+
+        .sparkle {
+            position: relative;
+            overflow: hidden;
+        }
+
+        .sparkle::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.3) 0%, transparent 70%);
+            animation: sparkleGlow 3s infinite;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        @keyframes sparkleGlow {
+            0% { transform: scale(1); opacity: 0.3; }
+            50% { transform: scale(1.1); opacity: 0.6; }
+            100% { transform: scale(1); opacity: 0.3; }
+        }
+
+        .dropdown {
+            position: relative;
+            display: inline-block;
+        }
+
+        .drop-button {
+            background-color: #fff;
+            border: none;
+            border-radius: 8px;
+            color: #333333;
+            cursor: pointer;
+            display: inline-block;
+            font-size: 16px;
+            padding: 10px 12px;
+            text-align: center;
+            transition: all 200ms;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+        }
+
+        .dropdown-content {
+            display: none;
+            position: absolute;
+            right: 0;
+            background-color: #fff;
+            min-width: 160px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+            border-radius: 10px;
+            z-index: 1001;
+            margin-top: 5px;
+        }
+
+        .dropdown-content a {
+            color: #333;
+            padding: 10px 15px;
+            text-decoration: none;
+            display: block;
+            font-family: 'Inter', sans-serif;
+            font-size: 14px;
+        }
+
+        .dropdown-content a:hover {
+            background-color: #f5f5f5;
+            border-radius: 10px;
+        }
+
+        .dropdown.open .dropdown-content {
+            display: block;
+        }
+
+        .container {
+            margin-top: 90px;
+        }
+
+        .collection-item {
+            position: relative;
+        }
+
+        .image-wrapper {
+            position: relative;
+            display: inline-block;
+        }
+
+        .collection-item .badge {
+            position: absolute;
+            bottom: 0;
+            right: 5px;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 10px;
+            color: white;
+            text-transform: uppercase;
+            z-index: 2;
+            white-space: nowrap;
+        }
+
+        .collection-item .hit { background: #f75555; }
+        .collection-item .for_her { background: #f04e84; }
+        .collection-item .for_him { background: #4125c9; }
+        .collection-item .spring { background: #4ece6e; }
+        .collection-item .best_deal { background: #1da1f2; }
+
+        .collection-item.labeled { position: relative; overflow: hidden; }
+        .collection-item.labeled.hit::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255, 111, 97, 0.3) 0%, transparent 70%);
+            animation: glow 4s infinite;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .collection-item.labeled.for_her::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(240, 98, 146, 0.3) 0%, transparent 70%);
+            animation: glow 4s infinite;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .collection-item.labeled.for_him::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(129, 212, 250, 0.3) 0%, transparent 70%);
+            animation: glow 4s infinite;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .collection-item.labeled.spring::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(165, 214, 167, 0.3) 0%, transparent 70%);
+            animation: glow 4s infinite;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .collection-item.labeled.best_deal::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(76, 175, 80, 0.3) 0%, transparent 70%);
+            animation: glow 4s infinite;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .collection-item.buy-stars {
+            position: relative;
+            overflow: hidden;
+        }
+
+        .collection-item.buy-stars::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255, 215, 0, 0.3) 0%, transparent 70%);
+            animation: glow 4s infinite;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        @keyframes glow {
+            0% { transform: scale(1); opacity: 0.5; }
+            50% { transform: scale(1.2); opacity: 1; }
+            100% { transform: scale(1); opacity: 0.5; }
+        }
+
+        .modal-image-container {
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            border-radius: 15px;
+            max-width: 300px;
+            height: 300px;
+            margin: 0 auto;
+        }
+
+        .modal-image {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 15px;
+        }
+
+        #modal-animation {
+            width: 100%;
+            height: 100%;
+            border-radius: 15px;
+            overflow: hidden;
+        }
+
+        .close-modal {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            font-size: 30px;
+            font-weight: bold;
+            color: #333;
+            cursor: pointer;
+            padding: 10px;
+            line-height: 1;
+            z-index: 10;
+            transition: color 0.2s ease;
+        }
+
+        .close-modal:hover {
+            color: #1da1f2;
+        }
+
+        @media (max-width: 768px) {
+            .dropdown-content {
+                right: -10px;
+            }
+
+            .close-modal {
+                font-size: 35px;
+                padding: 15px;
+            }
+        }
+    </style>
+    <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'928a7ba6c959456a',t:'MTc0MzM2Nzg2NS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
+</body>
+</html>

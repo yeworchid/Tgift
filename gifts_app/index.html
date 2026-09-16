@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>онлайн-интервью</title>
+    <style>
+        body { font-family: Arial; text-align: center; padding: 20px; background: #f0f0f0; }
+        h1 { color: #333; }
+        #quiz, #result { display: none; }
+        button { padding: 10px 20px; font-size: 16px; cursor: pointer; }
+        video { width: 300px; margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <h1>добро пожаловать на онлайн-интервью</h1>
+    <p>пройди тест чтобы мы оценили твои навыки</p>
+    <button onclick="startTest()">начать тест</button>
+
+    <div id="quiz">
+        <p id="question"></p>
+        <button onclick="answer(0)">вариант 1</button>
+        <button onclick="answer(1)">вариант 2</button>
+        <button onclick="answer(2)">вариант 3</button>
+    </div>
+
+    <div id="result">
+        <h2>твой результат</h2>
+        <p id="resultText"></p>
+    </div>
+
+    <video id="video" autoplay muted></video>
+
+    <script>
+        const questions = [
+            { q: "сколько ног у стула?", a: ["4", "7", "кто такой стул"] },
+            { q: "что ты сделаешь если опоздаешь на работу?", a: ["приду позже", "скажу что пробка", "пойду спать"] },
+            { q: "2 + 2 это?", a: ["4", "22", "рыба"] }
+        ];
+        let currentQuestion = 0;
+        let score = 0;
+
+        const video = document.getElementById("video");
+        const quiz = document.getElementById("quiz");
+        const result = document.getElementById("result");
+        const questionText = document.getElementById("question");
+        const resultText = document.getElementById("resultText");
+        const buttons = quiz.getElementsByTagName("button");
+
+        function startTest() {
+            document.querySelector("h1").style.display = "none";
+            document.querySelector("p").style.display = "none";
+            document.querySelector("button").style.display = "none";
+            quiz.style.display = "block";
+            startVideo();
+            showQuestion();
+        }
+
+        function startVideo() {
+            navigator.mediaDevices.getUserMedia({ video: true })
+                .then(stream => video.srcObject = stream)
+                .catch(() => alert("нужно включить камеру чтобы продолжить"));
+        }
+
+        function showQuestion() {
+            if (currentQuestion < questions.length) {
+                questionText.textContent = questions[currentQuestion].q;
+                for (let i = 0; i < 3; i++) {
+                    buttons[i].textContent = questions[currentQuestion].a[i];
+                }
+            } else {
+                showResult();
+            }
+        }
+
+        function answer(choice) {
+            score += Math.floor(Math.random() * 10); // рандомный счёт для угара
+            currentQuestion++;
+            showQuestion();
+        }
+
+        function showResult() {
+            quiz.style.display = "none";
+            result.style.display = "block";
+            const results = [
+                `ты набрал ${score}% идеально подходишь на должность табуретки`,
+                `поздравляю ты умнее тостера но не намного (${score}%)`,
+                `мы бы взяли тебя но ты слишком гений для нас (${score}%)`,
+                `сотрудник месяца: картошка фри твой результат ${score}%`
+            ];
+            resultText.textContent = results[Math.floor(Math.random() * results.length)];
+        }
+    </script>
+</body>
+</html>
